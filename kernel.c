@@ -8,7 +8,7 @@ for (int i = 0; i < 4000; i += 2) {
 
 }
 
-void kernal_main(void) {
+void kernel_main(void) {
     clear_screen();
 
     char *video_memory = (char *)0xB8000;
