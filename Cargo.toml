@@ -1,0 +1,7 @@
+[package]
+name = "minux-build"
+version = "0.1.0"
+edition = "2021"
+description = "Build & run automation for the minux hobby OS (Makefile replacement)"
+
+[dependencies]
