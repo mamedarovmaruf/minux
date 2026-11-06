@@ -5,7 +5,6 @@ use std::process::{self, Command, Stdio};
 
 const PROJECT: &str = "minux";
 const BUILD_DIR: &str = "build";
-const BOOT_SRC: &str = "boot.asm";
 const LINKER_SCRIPT: &str = "linker.ld";
 const KERNEL_BIN: &str = "kernel.elf";
 
@@ -160,17 +159,28 @@ fn prepare_build_dir(log: &Log, clean: bool) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-fn compile_asm(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<PathBuf, String> {
-    let out = out_dir.join("boot.o");
-    if !is_stale(&out, &[PathBuf::from(BOOT_SRC)]) {
-        log.info("boot.o is up to date, skipping assembly.");
-        return Ok(out);
+fn compile_asm_all(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let sources = files_with_ext("asm")?;
+    if sources.is_empty() {
+        return Err("no .asm files found in the project root".into());
     }
-    log.info("Compiling assembly...");
-    let mut cmd = Command::new(&tc.nasm);
-    cmd.args(["-f", "elf32", BOOT_SRC, "-o"]).arg(&out);
-    run_step(log, cmd)?;
-    Ok(out)
+
+    let mut objects = Vec::new();
+    for src in sources {
+        let stem = src.file_stem().unwrap().to_string_lossy().into_owned();
+        let obj = out_dir.join(format!("{stem}.asm.o"));
+
+        if is_stale(&obj, &[src.clone()]) {
+            log.info(&format!("Assembling {} ...", src.display()));
+            let mut cmd = Command::new(&tc.nasm);
+            cmd.args(["-f", "elf32"]).arg(&src).arg("-o").arg(&obj);
+            run_step(log, cmd)?;
+        } else {
+            log.info(&format!("{stem}.asm.o is up to date, skipping."));
+        }
+        objects.push(obj);
+    }
+    Ok(objects)
 }
 
 fn compile_c_all(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<Vec<PathBuf>, String> {
@@ -240,16 +250,14 @@ fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, debug: bool) -> Result<(),
 fn build_and_run(log: &Log, opts: &Options) -> Result<(), String> {
     log.info(&format!("=== {PROJECT}: build & run ==="));
 
-    for f in [BOOT_SRC, LINKER_SCRIPT] {
-        if !Path::new(f).is_file() {
-            return Err(format!("`{f}` not found. Run `cargo run` from the {PROJECT} project root."));
-        }
+    if !Path::new(LINKER_SCRIPT).is_file() {
+        return Err(format!("`{LINKER_SCRIPT}` not found. Run `cargo run` from the {PROJECT} project root."));
     }
 
     let tc = check_tools(log, opts.run)?;
     let out_dir = prepare_build_dir(log, opts.clean)?;
 
-    let mut objects = vec![compile_asm(log, &tc, &out_dir)?];
+    let mut objects = compile_asm_all(log, &tc, &out_dir)?;
     objects.extend(compile_c_all(log, &tc, &out_dir)?);
     let kernel = link(log, &tc, &out_dir, &objects)?;
 

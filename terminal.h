@@ -15,5 +15,6 @@ void set_color(enum vga_color fg, enum vga_color bg);
 void print_char(char c);
 void print_string(const char *s);
 void print_hex(uint32_t value);
+void print_dec(uint32_t value);
 
 #endif

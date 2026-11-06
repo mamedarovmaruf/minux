@@ -90,3 +90,19 @@ void print_hex(uint32_t value) {
         print_char(digits[(value >> shift) & 0xF]);
     }
 }
+
+void print_dec(uint32_t value) {
+    char buf[11];
+    int i = 0;
+    if (value == 0) {
+        print_char('0');
+        return;
+    }
+    while (value > 0) {
+        buf[i++] = (char)('0' + (value % 10));
+        value /= 10;
+    }
+    while (i > 0) {
+        print_char(buf[--i]);
+    }
+}

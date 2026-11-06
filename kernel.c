@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "idt.h"
 
 void kernel_main(void) {
     clear_screen();
@@ -8,6 +9,9 @@ void kernel_main(void) {
 
     set_color(VGA_LIGHT_GREEN, VGA_BLACK);
     print_string("Kernel loaded successfully.\n");
+
+    idt_init();
+    print_string("IDT loaded, exception handlers active.\n");
 
     set_color(VGA_LIGHT_GREY, VGA_BLACK);
     print_string("Video memory at ");
