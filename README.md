@@ -92,4 +92,10 @@ GPL-3.0
 
 
 
+<img width="717" height="402" alt="Снимок экрана от 2026-11-07 15-12-59" src="https://github.com/user-attachments/assets/f5dec2c7-001e-4d78-aad2-1fae22204180" />
+
+
+
+
+
 
