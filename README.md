@@ -83,3 +83,13 @@ gdb build/kernel.elf -ex 'target remote :1234'
 ## License
 
 GPL-3.0
+
+
+
+
+<img width="498" height="188" alt="Снимок экрана от 2026-11-07 15-07-20" src="https://github.com/user-attachments/assets/2b6eefa4-6287-4772-92d0-a6c2d3bd9551" />
+
+
+
+
+
