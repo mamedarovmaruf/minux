@@ -7,6 +7,8 @@ const PROJECT: &str = "minux";
 const BUILD_DIR: &str = "build";
 const LINKER_SCRIPT: &str = "linker.ld";
 const KERNEL_BIN: &str = "kernel.elf";
+const DISK_IMG: &str = "disk.img";
+const DISK_SIZE: u64 = 16 * 1024 * 1024;
 
 struct Log {
     color: bool,
@@ -29,21 +31,24 @@ struct Options {
     run: bool,
     clean: bool,
     debug: bool,
+    new_disk: bool,
 }
 
 fn parse_args() -> Result<Options, String> {
-    let mut o = Options { run: true, clean: false, debug: false };
+    let mut o = Options { run: true, clean: false, debug: false, new_disk: false };
     for arg in env::args().skip(1) {
         match arg.as_str() {
             "--no-run" => o.run = false,
             "--clean" => o.clean = true,
             "--debug" => o.debug = true,
+            "--new-disk" => o.new_disk = true,
             "-h" | "--help" => {
                 println!(
-                    "Usage: cargo run -- [--no-run] [--clean] [--debug]\n\n\
+                    "Usage: cargo run -- [--no-run] [--clean] [--debug] [--new-disk]\n\n\
                      \x20 --no-run   build only, do not launch QEMU\n\
                      \x20 --clean    remove build/ and rebuild from scratch\n\
-                     \x20 --debug    launch QEMU with -s -S (waits for GDB on port 1234)\n\n\
+                     \x20 --debug    launch QEMU with -s -S (waits for GDB on port 1234)\n\
+                     \x20 --new-disk delete and recreate disk.img (erases all files on it)\n\n\
                      Environment variables:\n\
                      \x20 CC         choose the C compiler (gcc / clang)\n\
                      \x20 NO_COLOR   disable colored output"
@@ -234,9 +239,24 @@ fn link(log: &Log, tc: &Toolchain, out_dir: &Path, objects: &[PathBuf]) -> Resul
     Ok(out)
 }
 
-fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, debug: bool) -> Result<(), String> {
+fn prepare_disk(log: &Log, reset: bool) -> Result<PathBuf, String> {
+    let path = PathBuf::from(DISK_IMG);
+    if reset && path.exists() {
+        log.info(&format!("Removing {DISK_IMG}..."));
+        fs::remove_file(&path).map_err(|e| format!("failed to remove {DISK_IMG}: {e}"))?;
+    }
+    if !path.exists() {
+        log.info(&format!("Creating blank {DISK_IMG} (16 MiB), run `format yes` in MOS to set it up"));
+        let file = fs::File::create(&path).map_err(|e| format!("failed to create {DISK_IMG}: {e}"))?;
+        file.set_len(DISK_SIZE).map_err(|e| format!("failed to size {DISK_IMG}: {e}"))?;
+    }
+    Ok(path)
+}
+
+fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, disk: &Path, debug: bool) -> Result<(), String> {
     let mut cmd = Command::new(&tc.qemu);
     cmd.arg("-kernel").arg(kernel);
+    cmd.arg("-drive").arg(format!("file={},format=raw,if=ide", disk.display()));
     if debug {
         log.info("Debug mode: QEMU is waiting for GDB on localhost:1234");
         log.info("In another terminal: gdb build/kernel.elf -ex 'target remote :1234'");
@@ -264,7 +284,8 @@ fn build_and_run(log: &Log, opts: &Options) -> Result<(), String> {
     log.ok(&format!("Build complete! -> {}", kernel.display()));
 
     if opts.run {
-        run_qemu(log, &tc, &kernel, opts.debug)?;
+        let disk = prepare_disk(log, opts.new_disk)?;
+        run_qemu(log, &tc, &kernel, &disk, opts.debug)?;
     }
     Ok(())
 }
