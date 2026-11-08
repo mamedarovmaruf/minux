@@ -50,13 +50,27 @@ static void keyboard_irq(struct regs *r) {
         extended = 1;
         return;
     }
-    if (extended) {
-        extended = 0;
-        return;
-    }
+    int was_extended = extended;
+    if (was_extended) extended = 0;
 
     int released = sc & 0x80;
     uint8_t code = sc & 0x7F;
+
+    if (was_extended) {
+        if (released) return;
+        switch (code) {
+            case 0x48: buffer_push(KEY_UP); return;
+            case 0x50: buffer_push(KEY_DOWN); return;
+            case 0x4B: buffer_push(KEY_LEFT); return;
+            case 0x4D: buffer_push(KEY_RIGHT); return;
+            case 0x47: buffer_push(KEY_HOME); return;
+            case 0x4F: buffer_push(KEY_END); return;
+            case 0x49: buffer_push(KEY_PGUP); return;
+            case 0x51: buffer_push(KEY_PGDN); return;
+            case 0x53: buffer_push(KEY_DELETE); return;
+            default: return;
+        }
+    }
 
     switch (code) {
         case 0x2A:

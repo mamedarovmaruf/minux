@@ -5,6 +5,7 @@
 #include "kstring.h"
 #include "fat.h"
 #include "io.h"
+#include "mino.h"
 
 #define MOS_VERSION "0.3"
 #define LINE_MAX 128
@@ -33,6 +34,7 @@ static void cmd_df(int argc, char **argv);
 static void cmd_format(int argc, char **argv);
 static void cmd_reboot(int argc, char **argv);
 static void cmd_halt(int argc, char **argv);
+static void cmd_mino(int argc, char **argv);
 
 static const struct mos_cmd commands[] = {
     { "help",   "show this list",                  cmd_help   },
@@ -50,6 +52,7 @@ static const struct mos_cmd commands[] = {
     { "format", "format the disk (format yes)",    cmd_format },
     { "reboot", "restart the computer",            cmd_reboot },
     { "halt",   "stop the system",                 cmd_halt   },
+    { "mino",   "edit a text file",                 cmd_mino   },
 };
 
 #define CMD_COUNT ((int)(sizeof(commands) / sizeof(commands[0])))
@@ -311,6 +314,10 @@ static void cmd_halt(int argc, char **argv) {
     for (;;) {
         __asm__ volatile ("cli; hlt");
     }
+}
+
+static void cmd_mino(int argc, char **argv) {
+    mino_run(argc > 1 ? argv[1] : 0);
 }
 
 static int tokenize(char *line, char **argv) {

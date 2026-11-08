@@ -37,6 +37,24 @@ void set_color(enum vga_color fg, enum vga_color bg) {
     color = (uint8_t)(fg | (bg << 4));
 }
 
+void put_char_at(uint8_t y, uint8_t x, char c, uint8_t attr) {
+    if (y >= VGA_HEIGHT || x >= VGA_WIDTH) return;
+    VGA_MEMORY[y * VGA_WIDTH + x] = vga_entry(c, attr);
+}
+
+void set_cursor(uint8_t y, uint8_t x) {
+    if (y >= VGA_HEIGHT) y = VGA_HEIGHT - 1;
+    if (x >= VGA_WIDTH) x = VGA_WIDTH - 1;
+    row = y;
+    col = x;
+    update_cursor();
+}
+
+void clear_line(uint8_t y) {
+    if (y >= VGA_HEIGHT) return;
+    for (int x = 0; x < VGA_WIDTH; x++) VGA_MEMORY[y * VGA_WIDTH + x] = vga_entry(' ', color);
+}
+
 void clear_screen(void) {
     for (int i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++) {
         VGA_MEMORY[i] = vga_entry(' ', color);
