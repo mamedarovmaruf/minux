@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "io.h"
 
 #define VGA_WIDTH   80
 #define VGA_HEIGHT  25
@@ -7,10 +8,6 @@
 static int row = 0;
 static int col = 0;
 static uint8_t color = (VGA_LIGHT_GREY) | (VGA_BLACK << 4);
-
-static inline void outb(uint16_t port, uint8_t value) {
-    __asm__ volatile ("outb %0, %1" : : "a"(value), "Nd"(port));
-}
 
 static inline uint16_t vga_entry(char c, uint8_t attr) {
     return (uint16_t)(uint8_t)c | ((uint16_t)attr << 8);

@@ -15,6 +15,7 @@ struct idt_ptr {
 } __attribute__((packed));
 
 extern uint32_t isr_stub_table[32];
+extern uint32_t irq_stub_table[16];
 
 static struct idt_entry idt[256];
 static struct idt_ptr idtp;
@@ -33,6 +34,10 @@ void idt_init(void) {
 
     for (int i = 0; i < 32; i++) {
         set_gate(i, isr_stub_table[i], cs);
+    }
+
+    for (int i = 0; i < 16; i++) {
+        set_gate(32 + i, irq_stub_table[i], cs);
     }
 
     idtp.limit = (uint16_t)(sizeof(idt) - 1);

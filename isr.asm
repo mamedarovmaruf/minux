@@ -15,7 +15,16 @@ isr%1:
     jmp isr_common
 %endmacro
 
+%macro IRQ 2
+global irq%1
+irq%1:
+    push dword 0
+    push dword %2
+    jmp irq_common
+%endmacro
+
 extern isr_handler
+extern irq_handler
 
 section .text
 
@@ -61,6 +70,32 @@ isr_common:
     add esp, 8
     iret
 
+IRQ 0, 32
+IRQ 1, 33
+IRQ 2, 34
+IRQ 3, 35
+IRQ 4, 36
+IRQ 5, 37
+IRQ 6, 38
+IRQ 7, 39
+IRQ 8, 40
+IRQ 9, 41
+IRQ 10, 42
+IRQ 11, 43
+IRQ 12, 44
+IRQ 13, 45
+IRQ 14, 46
+IRQ 15, 47
+
+irq_common:
+    pushad
+    push esp
+    call irq_handler
+    add esp, 4
+    popad
+    add esp, 8
+    iret
+
 section .data
 global isr_stub_table
 isr_stub_table:
@@ -96,5 +131,24 @@ isr_stub_table:
     dd isr29
     dd isr30
     dd isr31
+
+global irq_stub_table
+irq_stub_table:
+    dd irq0
+    dd irq1
+    dd irq2
+    dd irq3
+    dd irq4
+    dd irq5
+    dd irq6
+    dd irq7
+    dd irq8
+    dd irq9
+    dd irq10
+    dd irq11
+    dd irq12
+    dd irq13
+    dd irq14
+    dd irq15
 
 section .note.GNU-stack noalloc noexec nowrite progbits
