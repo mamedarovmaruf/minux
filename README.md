@@ -147,7 +147,7 @@ gdb build/kernel.elf -ex 'target remote :1234'
 
 <img width="515" height="498" alt="Снимок экрана от 2026-11-08 16-11-21" src="https://github.com/user-attachments/assets/0d289e5a-2f27-44d1-930c-26062cf8d614" />
 
-<img width="717" height="402" alt="Снимок экрана от 2026-11-07 15-12-59" src="https://github.com/user-attachments/assets/10d9e3fc-8f78-4e94-b7ec-cd7bcf42159c" />
+<img width="724" height="401" alt="panic" src="https://github.com/user-attachments/assets/d269442e-af40-4c00-9615-02fa59358c24" />
 
 <img width="498" height="188" alt="Снимок экрана от 2026-11-07 15-07-20" src="https://github.com/user-attachments/assets/27eddd8d-17d2-4a42-8ab6-291b7ca79cc0" />
 
