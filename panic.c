@@ -48,12 +48,59 @@ static void halt_forever(void) {
     }
 }
 
+/* ---- Gremlin mascot (bottom-right corner), drawn with the letter 'M' ----
+ * K = outline/eyes (black), W = fur (white), G = inner ear (dark grey),
+ * space = transparent (red background shows through).
+ * Edit the table to redraw him. */
+#define GREMLIN_W    38
+#define GREMLIN_H    19
+#define GREMLIN_ROW  6    /* 6 + 19 = 25 -> last screen row */
+#define GREMLIN_COL  42   /* 42 + 38 = 80 -> last screen column */
+
+static const char *gremlin_art[GREMLIN_H] = {
+    "KK                 KK             KKK ",
+    "KGKK              KWWK         KKKGGK ",
+    "KGGGKK           KWWWWK     KKKGGGGGK ",
+    " KGGGGKK        KWWWWWWK  KKGGGGGGGGK ",
+    " KGGGGGGKK    KKWWWWWWWWKKGGGGGGGGGK  ",
+    "  KGGGGGGKKKKKWWWWWWWWWWWKKGGGGGGGK   ",
+    "   KGGGGGGKWWWWWWWWWWWWWWWKGGGGGGKK   ",
+    "    KGGGGKWWWWWWWWWWWWWWWWWKGGGGK     ",
+    "     KKGKWWWKKKKWWWWKKKKWWWWKGKK      ",
+    "       KKWWKKWWKWWWWKWWKKWWWWKK       ",
+    "        KWWKKKKKWWWWKKKKKWWWWK        ",
+    "        KWWWKKKKWWKWWKKKKWWWWK        ",
+    "        KKWWWWWWWKKKKWWWWWWWKK        ",
+    "       KKWWKWWWWWWWKKWWWWWWKWWK       ",
+    "      KWWKWWKWWWWWWWWWWWWKWWKWWK      ",
+    "     KWWWKWWWKWWWWWWWWWWKWWWKWWWKK    ",
+    "    KWWWWWKWWWWKWWWWWWKWWWWKWWWWWK    ",
+    "    KWWKWWWKKWWWWKKWWWWKKWWWWKKWWK    ",
+    "     KKKKKKKKKKKKKKKKKKKKKKKKKKKK     ",
+};
+
+static void draw_gremlin(void) {
+    for (int y = 0; y < GREMLIN_H; y++) {
+        for (int x = 0; x < GREMLIN_W; x++) {
+            char c = gremlin_art[y][x];
+            uint8_t fg;
+            if      (c == 'K') fg = VGA_BLACK;
+            else if (c == 'W') fg = VGA_WHITE;
+            else if (c == 'G') fg = VGA_DARK_GREY;
+            else continue;
+            put_char_at((uint8_t)(GREMLIN_ROW + y), (uint8_t)(GREMLIN_COL + x),
+                        'M', (uint8_t)(fg | (VGA_RED << 4)));
+        }
+    }
+}
+
 static void panic_screen(const char *msg) {
     set_color(VGA_WHITE, VGA_RED);
     clear_screen();
     print_string("KERNEL PANIC: ");
     print_string(msg);
     print_string("\n\n");
+    draw_gremlin();
 }
 
 static void print_reg(const char *name, uint32_t value) {
@@ -90,11 +137,13 @@ void isr_handler(struct regs *r) {
 
     print_reg("EAX", r->eax);
     print_reg("EBX", r->ebx);
+    print_string("\n");
     print_reg("ECX", r->ecx);
     print_reg("EDX", r->edx);
     print_string("\n");
     print_reg("ESI", r->esi);
     print_reg("EDI", r->edi);
+    print_string("\n");
     print_reg("EBP", r->ebp);
     print_string("\n");
 
@@ -103,7 +152,7 @@ void isr_handler(struct regs *r) {
         print_hex(read_cr2());
         print_string("\n  ");
         print_string((r->err_code & 1) ? "protection violation" : "page not present");
-        print_string(", ");
+        print_string("\n  ");
         print_string((r->err_code & 2) ? "write" : "read");
         print_string(", ");
         print_string((r->err_code & 4) ? "user mode" : "kernel mode");
