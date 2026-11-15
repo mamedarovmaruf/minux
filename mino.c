@@ -6,7 +6,7 @@
 #include "kstring.h"
 
 #define MINO_CAP 16384
-#define MINO_LINES 23
+#define MINO_LINES (term_rows() - 2)   
 #define HIST_MAX 256
 #define HIST_BYTES 4
 
@@ -120,18 +120,19 @@ static void render(void) {
     if (ln < top_line) top_line = ln;
     if (ln >= top_line + MINO_LINES) top_line = ln - MINO_LINES + 1;
     if (col < left_col) left_col = col;
-    if (col >= left_col + 80) left_col = col - 79;
+    uint32_t cols = term_cols(), status_row = term_rows() - 1;
+    if (col >= left_col + cols) left_col = col - (cols - 1);
 
     set_color(VGA_WHITE, VGA_BLUE);
-    for (uint8_t x = 0; x < 80; x++) put_char_at(0, x, ' ', VGA_WHITE | (VGA_BLUE << 4));
+    for (uint32_t x = 0; x < cols; x++) put_char_at(0, x, ' ', VGA_WHITE | (VGA_BLUE << 4));
     const char *label = name ? name : "[No Name]";
-    for (uint8_t x = 0; x < 70 && label[x]; x++) put_char_at(0, x, label[x], VGA_WHITE | (VGA_BLUE << 4));
-    if (dirty) put_char_at(0, 71, '*', VGA_WHITE | (VGA_BLUE << 4));
+    for (uint32_t x = 0; x < cols - 10 && label[x]; x++) put_char_at(0, x, label[x], VGA_WHITE | (VGA_BLUE << 4));
+    if (dirty) put_char_at(0, cols - 9, '*', VGA_WHITE | (VGA_BLUE << 4));
 
     for (uint32_t row = 0; row < MINO_LINES; row++) {
         uint32_t s = line_start(top_line + row);
         uint32_t e = line_end(s);
-        for (uint32_t x = 0; x < 80; x++) {
+        for (uint32_t x = 0; x < cols; x++) {
             uint32_t index = s + left_col + x;
             char c = index < e ? doc[index] : ' ';
             put_char_at((uint8_t)(row + 1), (uint8_t)x, c, VGA_LIGHT_GREY | (VGA_BLACK << 4));
@@ -139,8 +140,8 @@ static void render(void) {
     }
 
     set_color(VGA_LIGHT_GREY, VGA_BLACK);
-    clear_line(24);
-    set_cursor(24, 0);
+    clear_line(status_row);
+    set_cursor(status_row, 0);
     print_dec(ln + 1); print_char(':'); print_dec(col + 1);
     print_string("  "); print_dec(size); print_string(" B  ^S Save ^X Exit ^Z Undo ^Y Redo");
     if (status_msg[0]) { print_string("  "); print_string(status_msg); }
@@ -184,7 +185,7 @@ void mino_run(const char *filename) {
         if (c == 0x13) save_file();
         else if (c == 0x18) {
             if (!dirty) break;
-            clear_line(24); set_cursor(24, 0); print_string("Discard changes? (y/n)");
+            clear_line(term_rows() - 1); set_cursor(term_rows() - 1, 0); print_string("Discard changes? (y/n)");
             c = keyboard_getchar();
             if (c == 'y' || c == 'Y') break;
         } else if (c == 0x1A) undo();

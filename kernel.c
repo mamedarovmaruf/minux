@@ -5,8 +5,11 @@
 #include "ata.h"
 #include "fat.h"
 #include "mos.h"
+#include "video.h"
 
-void kernel_main(void) {
+void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
+    video_init(mb_magic, mb_info);   
+    terminal_init();
     clear_screen();
 
     set_color(VGA_WHITE, VGA_BLACK);
@@ -14,6 +17,7 @@ void kernel_main(void) {
 
     set_color(VGA_LIGHT_GREEN, VGA_BLACK);
     print_string("Kernel loaded successfully.\n");
+    terminal_print_video_info();
 
     pic_init();
     idt_init();

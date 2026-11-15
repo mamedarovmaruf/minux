@@ -48,14 +48,8 @@ static void halt_forever(void) {
     }
 }
 
-/* ---- Gremlin mascot (bottom-right corner), drawn with the letter 'M' ----
- * K = outline/eyes (black), W = fur (white), G = inner ear (dark grey),
- * space = transparent (red background shows through).
- * Edit the table to redraw him. */
 #define GREMLIN_W    38
 #define GREMLIN_H    19
-#define GREMLIN_ROW  6    /* 6 + 19 = 25 -> last screen row */
-#define GREMLIN_COL  42   /* 42 + 38 = 80 -> last screen column */
 
 static const char *gremlin_art[GREMLIN_H] = {
     "KK                 KK             KKK ",
@@ -80,6 +74,9 @@ static const char *gremlin_art[GREMLIN_H] = {
 };
 
 static void draw_gremlin(void) {
+    if (term_cols() < GREMLIN_W || term_rows() < GREMLIN_H) return;
+    uint32_t gremlin_row = term_rows() - GREMLIN_H;
+    uint32_t gremlin_col = term_cols() - GREMLIN_W;
     for (int y = 0; y < GREMLIN_H; y++) {
         for (int x = 0; x < GREMLIN_W; x++) {
             char c = gremlin_art[y][x];
@@ -88,7 +85,7 @@ static void draw_gremlin(void) {
             else if (c == 'W') fg = VGA_WHITE;
             else if (c == 'G') fg = VGA_DARK_GREY;
             else continue;
-            put_char_at((uint8_t)(GREMLIN_ROW + y), (uint8_t)(GREMLIN_COL + x),
+            put_char_at(gremlin_row + (uint32_t)y, gremlin_col + (uint32_t)x,
                         'M', (uint8_t)(fg | (VGA_RED << 4)));
         }
     }

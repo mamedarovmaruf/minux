@@ -6,6 +6,7 @@
 #include "fat.h"
 #include "io.h"
 #include "mino.h"
+#include "video.h"
 
 #define MOS_VERSION "0.3"
 #define LINE_MAX 128
@@ -24,6 +25,7 @@ static void cmd_clear(int argc, char **argv);
 static void cmd_echo(int argc, char **argv);
 static void cmd_mos(int argc, char **argv);
 static void cmd_mem(int argc, char **argv);
+static void cmd_video(int argc, char **argv);
 static void cmd_ls(int argc, char **argv);
 static void cmd_cat(int argc, char **argv);
 static void cmd_touch(int argc, char **argv);
@@ -42,6 +44,7 @@ static const struct mos_cmd commands[] = {
     { "echo",   "print arguments",                 cmd_echo   },
     { "mos",    "show shell information",          cmd_mos    },
     { "mem",    "show memory information",         cmd_mem    },
+    { "video",  "show display mode and resolution", cmd_video  },
     { "ls",     "list files",                      cmd_ls     },
     { "cat",    "print a file",                    cmd_cat    },
     { "touch",  "create an empty file",            cmd_touch  },
@@ -83,7 +86,6 @@ static void fail(const char *cmd, const char *msg) {
     set_color(VGA_LIGHT_GREY, VGA_BLACK);
 }
 
-/* joins argv[start..] with single spaces and ends the result with '\n' */
 static uint32_t join_args(int argc, char **argv, int start, char *buf) {
     uint32_t len = 0;
     for (int i = start; i < argc; i++) {
@@ -139,11 +141,17 @@ static void cmd_mem(int argc, char **argv) {
     (void)argc;
     (void)argv;
     print_string("Video memory: ");
-    print_hex(0xB8000);
+    print_hex(video_get()->fb_addr);
     print_char('\n');
     print_string("Kernel entry: ");
     print_hex((uint32_t)(uintptr_t)&mos_run);
     print_char('\n');
+}
+
+static void cmd_video(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
+    terminal_print_video_info();
 }
 
 static void cmd_ls(int argc, char **argv) {

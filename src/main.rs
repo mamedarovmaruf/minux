@@ -257,6 +257,9 @@ fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, disk: &Path, debug: bool) 
     let mut cmd = Command::new(&tc.qemu);
     cmd.arg("-kernel").arg(kernel);
     cmd.arg("-drive").arg(format!("file={},format=raw,if=ide", disk.display()));
+    // Standard VGA card = Bochs VBE (BGA) registers, used to switch to 1920x1080
+    // because QEMU's -kernel loader ignores the Multiboot video-mode request.
+    cmd.args(["-vga", "std"]);
     if debug {
         log.info("Debug mode: QEMU is waiting for GDB on localhost:1234");
         log.info("In another terminal: gdb build/kernel.elf -ex 'target remote :1234'");

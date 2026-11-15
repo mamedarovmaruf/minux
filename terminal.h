@@ -16,8 +16,15 @@ void print_char(char c);
 void print_string(const char *s);
 void print_hex(uint32_t value);
 void print_dec(uint32_t value);
-void put_char_at(uint8_t row, uint8_t col, char c, uint8_t color);
-void set_cursor(uint8_t row, uint8_t col);
-void clear_line(uint8_t row);
+void put_char_at(uint32_t row, uint32_t col, char c, uint8_t color);
+void set_cursor(uint32_t row, uint32_t col);
+void clear_line(uint32_t row);
+
+void terminal_init(void);
+
+uint32_t term_cols(void);
+uint32_t term_rows(void);
+
+void terminal_print_video_info(void);
 
 #endif
