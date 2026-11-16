@@ -8,9 +8,9 @@ Minux boots in QEMU or on real hardware via Multiboot, detects the screen resolu
 
 ```
 minux/
-├── boot.asm        Entry point: Multiboot header (with video mode request), stack setup, call into C
+├── boot.asm        Entry point: Multiboot header (video mode + memory map request), stack setup, call into C
 ├── isr.asm         CPU exception stubs (0-31) and IRQ stubs (32-47)
-├── linker.ld       Memory layout: kernel is loaded at 0x100000 (1 MB)
+├── linker.ld       Memory layout: kernel is loaded at 0x100000 (1 MB), exports kernel_end
 ├── kernel.c        kernel_main(): hardware init, then hands control to the shell
 ├── idt.c / idt.h   Interrupt Descriptor Table setup
 ├── pic.c / pic.h   8259 PIC remapping, EOI, IRQ mask/unmask
@@ -22,6 +22,10 @@ minux/
 ├── terminal.c / terminal.h   Text console on top of the framebuffer, VGA text mode as fallback
 ├── keyboard.c / keyboard.h   PS/2 keyboard driver (scancode set 1)
 ├── mos.c / mos.h   MOS shell: line editing, parser, built-in commands
+├── multiboot.h     Multiboot info and memory map structures
+├── pmm.c / pmm.h   Physical memory manager (bitmap of 4 KB pages)
+├── paging.c / paging.h   x86 paging: identity map, address spaces, map/unmap
+├── kheap.c / kheap.h     Kernel heap: kmalloc / kcalloc / kfree
 ├── kstring.c / kstring.h   Minimal string functions (no libc in the kernel)
 ├── src/main.rs     Build & run tool written in Rust (replacement for a Makefile)
 ├── Cargo.toml      Cargo manifest for the build tool
@@ -36,6 +40,7 @@ minux/
    - `video_init()` detects the display and `terminal_init()` switches the console to the framebuffer if one was found.
    - `pic_init()` remaps the two 8259 PICs so that IRQ0-15 land on vectors 32-47 instead of colliding with CPU exceptions.
    - `idt_init()` fills the IDT: vectors 0-31 point to exception stubs, vectors 32-47 point to IRQ stubs.
+   - `pmm_init()` reads the Multiboot memory map, `paging_init()` enables paging and `kheap_init()` creates the kernel heap (see Memory management below).
    - `keyboard_init()` drains the controller buffer, registers the keyboard IRQ handler and unmasks IRQ1.
    - `sti` enables hardware interrupts.
 4. `kernel_main` calls `mos_run()`, which reads keys through `keyboard_getchar()` and executes commands.
@@ -70,6 +75,18 @@ The colours are the 16 standard VGA colours in both modes.
 
 `panic.c` handles CPU exceptions. It switches to a red screen and dumps the exception name, error code, EIP, CS, EFLAGS and general registers. For page faults it also decodes the faulting address and access type. Afterwards the CPU is halted.
 
+### Memory management
+
+Memory is set up in three layers, in this order:
+
+1. **Physical memory manager** (`pmm.c`). The Multiboot memory map (requested by flag bit 1 in `boot.asm`) is parsed and every usable region is marked free in a bitmap, one bit per 4 KB page. Page 0, the kernel image (up to the `kernel_end` linker symbol), the Multiboot info and the memory map itself are reserved. Only RAM below 3 GB is managed; the top 1 GB of address space is left for the kernel heap and device memory. API: `pmm_alloc()` (returns a physical address, `0` if out of memory), `pmm_free()`, `pmm_free_pages()`, `pmm_total_pages()`.
+2. **Paging** (`paging.c`). All RAM is identity-mapped, supervisor-only, with page 0 left unmapped so `NULL` dereferences cause a page fault. The VGA text buffer and the framebuffer (uncached) are mapped explicitly. Paging is enabled with `CR0.PG` and `CR0.WP`. Page tables are allocated from the PMM on demand. If there is no memory map, paging stays off and the kernel runs as before.
+   - `paging_map()`, `paging_unmap()`, `paging_phys()` and `paging_map_range()` work on an `addrspace_t`.
+   - `paging_space_create()` makes a new address space that shares the kernel mappings; `paging_switch()` loads it into `CR3`; `paging_space_destroy()` frees its pages and tables. A non-kernel space cannot map addresses that belong to the kernel's tables. Running code in ring 3 is not implemented yet (no user GDT or TSS), so only the kernel space is used for now.
+3. **Kernel heap** (`kheap.c`). Lives at `0xC0000000` (up to 16 MB) and grows one page at a time from the PMM. Blocks have a small header and are chained in address order; allocation is first-fit with block splitting, and `kfree()` merges neighbouring free blocks. Returned pointers are 16-byte aligned. `kfree()` panics on a double free or a bad pointer. API: `kmalloc(size)`, `kcalloc(size)` (zeroed), `kfree(ptr)`, `kheap_stats()`. The heap is not interrupt-safe, so do not call it from IRQ handlers.
+
+The `mem` command shows total and free RAM and the heap statistics.
+
 ### Keyboard
 
 `keyboard.c` reads scancodes from port `0x60` in IRQ1. It supports scancode set 1, which QEMU and most BIOS emulations use by default.
@@ -92,7 +109,7 @@ Built-in commands:
 | `clear`  | clear the screen                         |
 | `echo`   | print the arguments                      |
 | `mos`    | show the shell banner and version        |
-| `mem`    | show the video memory and kernel entry addresses |
+| `mem`    | show total/free RAM, kernel heap usage, framebuffer and kernel entry addresses |
 | `video`  | show the current video mode, framebuffer address and text grid size |
 | `reboot` | restart the machine through the keyboard controller (`0xFE` on port `0x64`) |
 | `halt`   | stop the CPU with `cli; hlt`             |
@@ -155,7 +172,10 @@ gdb build/kernel.elf -ex 'target remote :1234'
 - [ ] Timer (IRQ0) and `uptime` command
 - [ ] Command history and arrow keys (decode `0xE0` sequences)
 - [ ] Function keys and extended keys
-- [ ] Memory management (physical allocator, paging)
+- [x] Physical memory manager (Multiboot memory map, 4 KB page bitmap)
+- [x] Paging (identity map, per-space page directories)
+- [x] Kernel heap (`kmalloc` / `kfree`)
+- [ ] User mode (ring 3, TSS) with per-process address spaces
 - [ ] Process scheduling
 
 ## Screenshots
