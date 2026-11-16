@@ -6,6 +6,9 @@
 #include "fat.h"
 #include "mos.h"
 #include "video.h"
+#include "pmm.h"
+#include "paging.h"
+#include "kheap.h"
 
 void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
     video_init(mb_magic, mb_info);   
@@ -22,6 +25,18 @@ void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
     pic_init();
     idt_init();
     print_string("IDT loaded, exception handlers active.\n");
+
+    /* Memory: needs IDT first so a page fault shows a panic screen. */
+    pmm_init(mb_magic, mb_info);
+    if (paging_init() == 0) {
+        kheap_init();
+        print_dec(pmm_free_pages() * 4 / 1024);
+        print_string(" MB free, paging and heap ready.\n");
+    } else {
+        set_color(VGA_YELLOW, VGA_BLACK);
+        print_string("Paging disabled: no memory map.\n");
+        set_color(VGA_LIGHT_GREEN, VGA_BLACK);
+    }
 
     keyboard_init();
     __asm__ volatile ("sti");

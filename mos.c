@@ -7,6 +7,8 @@
 #include "io.h"
 #include "mino.h"
 #include "video.h"
+#include "pmm.h"
+#include "kheap.h"
 
 #define MOS_VERSION "0.3"
 #define LINE_MAX 128
@@ -140,12 +142,14 @@ static void cmd_mos(int argc, char **argv) {
 static void cmd_mem(int argc, char **argv) {
     (void)argc;
     (void)argv;
-    print_string("Video memory: ");
-    print_hex(video_get()->fb_addr);
-    print_char('\n');
-    print_string("Kernel entry: ");
-    print_hex((uint32_t)(uintptr_t)&mos_run);
-    print_char('\n');
+    uint32_t used, free_b, blocks;
+    kheap_stats(&used, &free_b, &blocks);
+    print_string("RAM:    "); print_dec(pmm_total_pages() * 4 / 1024); print_string(" MB total, ");
+    print_dec(pmm_free_pages() * 4 / 1024); print_string(" MB free\n");
+    print_string("Heap:   "); print_dec(used); print_string(" B used, ");
+    print_dec(free_b); print_string(" B free, "); print_dec(blocks); print_string(" blocks\n");
+    print_string("Video:  "); print_hex(video_get()->fb_addr); print_char('\n');
+    print_string("Kernel: "); print_hex((uint32_t)(uintptr_t)&mos_run); print_char('\n');
 }
 
 static void cmd_video(int argc, char **argv) {

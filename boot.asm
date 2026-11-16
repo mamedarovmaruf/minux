@@ -1,6 +1,6 @@
 bits 32
 MB_MAGIC    equ 0x1BADB002
-MB_FLAGS    equ 0x00000004
+MB_FLAGS    equ 0x00000006      ; bit 1: memory map, bit 2: video mode
 MB_CHECKSUM equ -(MB_MAGIC + MB_FLAGS)
 
 MB_VID_MODE   equ 0
