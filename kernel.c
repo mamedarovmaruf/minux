@@ -9,8 +9,11 @@
 #include "pmm.h"
 #include "paging.h"
 #include "kheap.h"
+#include "gdt.h"
+#include "pit.h"
 
 void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
+    gdt_init();                      /* own GDT before anything else */
     video_init(mb_magic, mb_info);   
     terminal_init();
     clear_screen();
@@ -39,8 +42,12 @@ void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
     }
 
     keyboard_init();
+    pit_init(100);                   /* 100 Hz system tick */
     __asm__ volatile ("sti");
     print_string("Keyboard driver ready.\n");
+    print_string("GDT loaded, timer running at ");
+    print_dec(pit_hz());
+    print_string(" Hz.\n");
 
     if (ata_init() == 0) {
         print_string("Disk found: ");

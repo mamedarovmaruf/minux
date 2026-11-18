@@ -9,6 +9,7 @@
 #include "video.h"
 #include "pmm.h"
 #include "kheap.h"
+#include "pit.h"
 
 #define MOS_VERSION "0.3"
 #define LINE_MAX 128
@@ -39,6 +40,7 @@ static void cmd_format(int argc, char **argv);
 static void cmd_reboot(int argc, char **argv);
 static void cmd_halt(int argc, char **argv);
 static void cmd_mino(int argc, char **argv);
+static void cmd_uptime(int argc, char **argv);
 
 static const struct mos_cmd commands[] = {
     { "help",   "show this list",                  cmd_help   },
@@ -58,6 +60,7 @@ static const struct mos_cmd commands[] = {
     { "reboot", "restart the computer",            cmd_reboot },
     { "halt",   "stop the system",                 cmd_halt   },
     { "mino",   "edit a text file",                 cmd_mino   },
+    { "uptime", "show time since boot",            cmd_uptime },
 };
 
 #define CMD_COUNT ((int)(sizeof(commands) / sizeof(commands[0])))
@@ -150,6 +153,16 @@ static void cmd_mem(int argc, char **argv) {
     print_dec(free_b); print_string(" B free, "); print_dec(blocks); print_string(" blocks\n");
     print_string("Video:  "); print_hex(video_get()->fb_addr); print_char('\n');
     print_string("Kernel: "); print_hex((uint32_t)(uintptr_t)&mos_run); print_char('\n');
+}
+
+static void cmd_uptime(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
+    uint32_t s = pit_uptime_ms() / 1000;
+    print_dec(s / 3600); print_string("h ");
+    print_dec(s / 60 % 60); print_string("m ");
+    print_dec(s % 60); print_string("s (");
+    print_dec(pit_ticks()); print_string(" ticks)\n");
 }
 
 static void cmd_video(int argc, char **argv) {
