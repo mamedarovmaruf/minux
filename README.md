@@ -168,8 +168,8 @@ gdb build/kernel.elf -ex 'target remote :1234'
 - [x] PS/2 keyboard driver (scancode set 1, Shift, Caps Lock, Ctrl)
 - [x] MOS shell with line editing and built-in commands
 - [x] Framebuffer console with automatic resolution detection (Multiboot / Bochs VBE)
-- [ ] Own GDT
-- [ ] Timer (IRQ0) and `uptime` command
+- [x] Own GDT
+- [x] Timer (IRQ0) and `uptime` command
 - [ ] Command history and arrow keys (decode `0xE0` sequences)
 - [ ] Function keys and extended keys
 - [x] Physical memory manager (Multiboot memory map, 4 KB page bitmap)
