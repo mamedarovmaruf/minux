@@ -3,14 +3,12 @@
 #include "video.h"
 #include "kstring.h"
 
-/* We manage RAM below 3 GB only: the top 1 GB of virtual space is left
-   for the heap and device memory (framebuffer). */
 #define PMM_LIMIT   0xC0000000u
 #define MAX_PAGES   (PMM_LIMIT / PAGE_SIZE)
 
 extern char kernel_end;
 
-static uint32_t bitmap[MAX_PAGES / 32];   /* bit set = page is used */
+static uint32_t bitmap[MAX_PAGES / 32];
 static uint32_t total_pages, used_pages, max_phys, search_hint;
 
 static void mark_used(uint32_t page) {
@@ -33,14 +31,13 @@ static void reserve(uint32_t start, uint32_t end) {
 }
 
 void pmm_init(uint32_t mb_magic, uint32_t mb_info) {
-    kmemset(bitmap, 0xFF, sizeof(bitmap));     /* everything used by default */
+    kmemset(bitmap, 0xFF, sizeof(bitmap));
     used_pages = MAX_PAGES;
 
     const struct mb_info *mbi = (const struct mb_info *)(uintptr_t)mb_info;
     if (mb_magic != MULTIBOOT_BOOTLOADER_MAGIC || !mbi || !(mbi->flags & MB_INFO_MMAP))
-        return;                                 /* no map: PMM stays empty */
+        return;                                 
 
-    /* Free every usable region from the map. */
     uint32_t p = mbi->mmap_addr, end = mbi->mmap_addr + mbi->mmap_length;
     while (p < end) {
         const struct mb_mmap_entry *e = (const struct mb_mmap_entry *)(uintptr_t)p;
@@ -57,7 +54,6 @@ void pmm_init(uint32_t mb_magic, uint32_t mb_info) {
         p += e->size + 4;
     }
 
-    /* Keep out of the way: BIOS area + kernel image, and the boot data. */
     reserve(0, (uint32_t)(uintptr_t)&kernel_end > 0x100000u ? (uint32_t)(uintptr_t)&kernel_end : 0x100000u);
     reserve(mb_info, mb_info + sizeof(*mbi));
     reserve(mbi->mmap_addr, mbi->mmap_addr + mbi->mmap_length);

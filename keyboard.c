@@ -3,6 +3,7 @@
 #include "irq.h"
 #include "pic.h"
 #include "io.h"
+#include "sched.h"
 
 #define KBD_DATA 0x60
 #define KBD_STATUS 0x64
@@ -40,6 +41,7 @@ static void buffer_push(char c) {
     }
     buffer[head] = c;
     head = next;
+    sched_wake_key();               /* let blocked readers retry */
 }
 
 static void keyboard_irq(struct regs *r) {
@@ -122,6 +124,15 @@ void keyboard_init(void) {
 
 int keyboard_has_char(void) {
     return head != tail;
+}
+
+int keyboard_read_nowait(void) {
+    if (head == tail) {
+        return -1;
+    }
+    char c = buffer[tail];
+    tail = (tail + 1) & (BUF_SIZE - 1);
+    return (uint8_t)c;
 }
 
 char keyboard_getchar(void) {

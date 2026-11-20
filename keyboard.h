@@ -14,5 +14,6 @@
 void keyboard_init(void);
 int keyboard_has_char(void);
 char keyboard_getchar(void);
+int keyboard_read_nowait(void);         /* -1 if empty; call with IF=0 */
 
 #endif

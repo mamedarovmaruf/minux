@@ -6,6 +6,8 @@ use std::process::{self, Command, Stdio};
 const PROJECT: &str = "minux";
 const BUILD_DIR: &str = "build";
 const LINKER_SCRIPT: &str = "linker.ld";
+const USER_DIR: &str = "user";
+const USER_LINKER: &str = "user/user.ld";
 const KERNEL_BIN: &str = "kernel.elf";
 const DISK_IMG: &str = "disk.img";
 const DISK_SIZE: u64 = 16 * 1024 * 1024;
@@ -108,6 +110,7 @@ struct Toolchain {
     nasm: String,
     cc: String,
     ld: String,
+    objcopy: String,
     qemu: String,
 }
 
@@ -123,6 +126,7 @@ fn check_tools(log: &Log, need_qemu: bool) -> Result<Toolchain, String> {
     let nasm = find_first(&["nasm".to_string()]);
     let cc = find_first(&cc_candidates);
     let ld = find_first(&["ld".to_string()]);
+    let objcopy = find_first(&["objcopy".to_string()]);
     let qemu = find_first(&["qemu-system-x86_64".to_string(), "qemu-system-i386".to_string()]);
 
     let show = |name: &str, f: &Option<String>| match f {
@@ -132,12 +136,14 @@ fn check_tools(log: &Log, need_qemu: bool) -> Result<Toolchain, String> {
     show("nasm", &nasm);
     show("gcc/clang", &cc);
     show("ld", &ld);
+    show("objcopy", &objcopy);
     if need_qemu { show("qemu", &qemu); }
 
     let mut missing = Vec::new();
     if nasm.is_none() { missing.push("nasm"); }
     if cc.is_none() { missing.push("gcc/clang"); }
     if ld.is_none() { missing.push("ld (binutils)"); }
+    if objcopy.is_none() { missing.push("objcopy (binutils)"); }
     if need_qemu && qemu.is_none() { missing.push("qemu-system-x86_64"); }
     if !missing.is_empty() {
         return Err(format!(
@@ -150,6 +156,7 @@ fn check_tools(log: &Log, need_qemu: bool) -> Result<Toolchain, String> {
         nasm: nasm.unwrap(),
         cc: cc.unwrap(),
         ld: ld.unwrap(),
+        objcopy: objcopy.unwrap(),
         qemu: qemu.unwrap_or_default(),
     })
 }
@@ -208,7 +215,7 @@ fn compile_c_all(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<Vec<PathBu
             let mut cmd = Command::new(&tc.cc);
             cmd.args([
                 "-m32", "-ffreestanding", "-fno-stack-protector", "-fno-pic", "-fno-pie",
-                "-nostdlib", "-O2", "-Wall", "-Wextra", "-c",
+                "-nostdlib", "-O2", "-Wall", "-Wextra", "-mno-sse", "-mno-mmx", "-c",
             ])
             .arg(&src)
             .arg("-o")
@@ -220,6 +227,111 @@ fn compile_c_all(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<Vec<PathBu
         objects.push(obj);
     }
     Ok(objects)
+}
+
+fn dir_files(dir: &Path, ext: &str) -> Result<Vec<PathBuf>, String> {
+    let mut v: Vec<PathBuf> = fs::read_dir(dir)
+        .map_err(|e| format!("failed to read {}: {e}", dir.display()))?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_file() && p.extension().map_or(false, |x| x == ext))
+        .collect();
+    v.sort();
+    Ok(v)
+}
+
+fn user_program_names() -> Result<Vec<String>, String> {
+    let rd = fs::read_dir(USER_DIR).map_err(|e| format!("failed to read {USER_DIR}/: {e}"))?;
+    let mut names: Vec<String> = rd
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_dir())
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .filter(|n| n.as_str() != "lib")
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+fn build_user_program(log: &Log, tc: &Toolchain, out_dir: &Path, name: &str) -> Result<PathBuf, String> {
+    let prog_dir = Path::new(USER_DIR).join(name);
+    let lib_dir = Path::new(USER_DIR).join("lib");
+
+    let mut sources = dir_files(&prog_dir, "c")?;
+    sources.extend(dir_files(&lib_dir, "c")?);
+    sources.push(PathBuf::from("kstring.c"));
+
+    let mut headers = files_with_ext("h")?;
+    headers.extend(dir_files(&prog_dir, "h")?);
+    headers.extend(dir_files(&lib_dir, "h")?);
+
+    let mut objects: Vec<PathBuf> = Vec::new();
+    for src in &sources {
+        let stem = src.file_stem().unwrap().to_string_lossy().into_owned();
+        let obj = out_dir.join(format!("u_{name}_{stem}.o"));
+
+        let mut deps = headers.clone();
+        deps.push(src.clone());
+
+        if is_stale(&obj, &deps) {
+            log.info(&format!("Compiling {} ...", src.display()));
+            let mut cmd = Command::new(&tc.cc);
+            cmd.args([
+                "-m32", "-ffreestanding", "-fno-stack-protector", "-fno-pic", "-fno-pie",
+                "-nostdlib", "-O2", "-Wall", "-Wextra", "-mno-sse", "-mno-mmx",
+                "-fno-tree-loop-distribute-patterns", "-fno-asynchronous-unwind-tables",
+                "-I.", "-Iuser/lib", "-c",
+            ])
+            .arg(src)
+            .arg("-o")
+            .arg(&obj);
+            run_step(log, cmd)?;
+        } else {
+            log.info(&format!("u_{name}_{stem}.o is up to date, skipping."));
+        }
+        objects.push(obj);
+    }
+
+    let elf = out_dir.join(format!("{name}.elf"));
+    let mut deps = objects.clone();
+    deps.push(PathBuf::from(USER_LINKER));
+    if is_stale(&elf, &deps) {
+        log.info(&format!("Linking user program {name} ..."));
+        let mut cmd = Command::new(&tc.ld);
+        cmd.args(["-m", "elf_i386", "-T", USER_LINKER, "-o"])
+            .arg(&elf)
+            .args(&objects);
+        run_step(log, cmd)?;
+    }
+
+    let bin = out_dir.join(format!("{name}.bin"));
+    if is_stale(&bin, &[elf.clone()]) {
+        let mut cmd = Command::new(&tc.objcopy);
+        cmd.args(["-O", "binary"]).arg(&elf).arg(&bin);
+        run_step(log, cmd)?;
+    }
+
+    let blob = out_dir.join(format!("{name}.bin.o"));
+    if is_stale(&blob, &[bin.clone()]) {
+        // Run inside build/ so the symbol names do not contain the path.
+        let mut cmd = Command::new(&tc.ld);
+        cmd.current_dir(out_dir)
+            .args(["-r", "-b", "binary", "-m", "elf_i386", "-o"])
+            .arg(format!("{name}.bin.o"))
+            .arg(format!("{name}.bin"));
+        run_step(log, cmd)?;
+    }
+    Ok(blob)
+}
+
+fn build_user_all(log: &Log, tc: &Toolchain, out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let names = user_program_names()?;
+    if names.is_empty() {
+        return Err(format!("no user programs found in {USER_DIR}/"));
+    }
+    let mut blobs = Vec::new();
+    for name in names {
+        blobs.push(build_user_program(log, tc, out_dir, &name)?);
+    }
+    Ok(blobs)
 }
 
 fn link(log: &Log, tc: &Toolchain, out_dir: &Path, objects: &[PathBuf]) -> Result<PathBuf, String> {
@@ -257,8 +369,6 @@ fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, disk: &Path, debug: bool) 
     let mut cmd = Command::new(&tc.qemu);
     cmd.arg("-kernel").arg(kernel);
     cmd.arg("-drive").arg(format!("file={},format=raw,if=ide", disk.display()));
-    // Standard VGA card = Bochs VBE (BGA) registers, used to switch to 1920x1080
-    // because QEMU's -kernel loader ignores the Multiboot video-mode request.
     cmd.args(["-vga", "std"]);
     if debug {
         log.info("Debug mode: QEMU is waiting for GDB on localhost:1234");
@@ -273,7 +383,7 @@ fn run_qemu(log: &Log, tc: &Toolchain, kernel: &Path, disk: &Path, debug: bool) 
 fn build_and_run(log: &Log, opts: &Options) -> Result<(), String> {
     log.info(&format!("=== {PROJECT}: build & run ==="));
 
-    if !Path::new(LINKER_SCRIPT).is_file() {
+    if !Path::new(LINKER_SCRIPT).is_file() || !Path::new(USER_LINKER).is_file() {
         return Err(format!("`{LINKER_SCRIPT}` not found. Run `cargo run` from the {PROJECT} project root."));
     }
 
@@ -282,6 +392,7 @@ fn build_and_run(log: &Log, opts: &Options) -> Result<(), String> {
 
     let mut objects = compile_asm_all(log, &tc, &out_dir)?;
     objects.extend(compile_c_all(log, &tc, &out_dir)?);
+    objects.extend(build_user_all(log, &tc, &out_dir)?);
     let kernel = link(log, &tc, &out_dir, &objects)?;
 
     log.ok(&format!("Build complete! -> {}", kernel.display()));

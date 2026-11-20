@@ -24,8 +24,6 @@
 #define TIMEOUT 1000000
 
 static uint32_t sectors = 0;
-
-/* four reads of the alternate status register give the drive its 400ns */
 static void delay(void) {
     for (int i = 0; i < 4; i++) {
         (void)inb(ATA_CTRL);

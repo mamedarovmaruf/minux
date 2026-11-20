@@ -6,6 +6,6 @@
 typedef void (*irq_handler_t)(struct regs *r);
 
 void irq_install_handler(int irq, irq_handler_t handler);
-void irq_handler(struct regs *r);
+uint32_t irq_handler(struct regs *r);   /* returns the stack to resume on */
 
 #endif

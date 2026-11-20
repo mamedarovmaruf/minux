@@ -60,12 +60,27 @@ ISR_NOERR 28
 ISR_NOERR 29
 ISR_ERR 30
 ISR_NOERR 31
+ISR_NOERR 128                   ; int 0x80, system call
 
 isr_common:
     pushad
+    push ds
+    push es
+    push fs
+    push gs
+    cld
+    mov ax, 0x10                ; kernel data segment
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
     push esp
     call isr_handler
-    add esp, 4
+    mov esp, eax                ; handler picks the stack to resume on
+    pop gs
+    pop fs
+    pop es
+    pop ds
     popad
     add esp, 8
     iret
@@ -89,9 +104,23 @@ IRQ 15, 47
 
 irq_common:
     pushad
+    push ds
+    push es
+    push fs
+    push gs
+    cld
+    mov ax, 0x10                ; kernel data segment
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
     push esp
     call irq_handler
-    add esp, 4
+    mov esp, eax                ; handler picks the stack to resume on
+    pop gs
+    pop fs
+    pop es
+    pop ds
     popad
     add esp, 8
     iret

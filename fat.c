@@ -22,7 +22,6 @@
 #define FORMAT_ROOT_ENTRIES 512
 #define FORMAT_MAX_SECTORS  250000
 
-/* there is no RTC driver yet, every file gets 2026-01-01 */
 #define FIXED_DATE 0x5C21
 
 struct bpb {

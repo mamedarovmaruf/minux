@@ -1,5 +1,7 @@
 #include "terminal.h"
 #include "panic.h"
+#include "sched.h"
+#include "syscall.h"
 
 static const char *exception_names[32] = {
     "Division Error",
@@ -42,6 +44,7 @@ static uint32_t read_cr2(void) {
     return value;
 }
 
+static void halt_forever(void) __attribute__((noreturn));
 static void halt_forever(void) {
     for (;;) {
         __asm__ volatile ("cli; hlt");
@@ -114,7 +117,29 @@ void kernel_panic(const char *msg) {
     halt_forever();
 }
 
-void isr_handler(struct regs *r) {
+uint32_t isr_handler(struct regs *r) {
+    if (r->int_no == 0x80) {
+        return syscall_handler(r);
+    }
+
+    /* A fault in ring 3 only kills that process, the kernel keeps running. */
+    if (r->cs & 3) {
+        set_color(VGA_LIGHT_RED, VGA_BLACK);
+        print_string("\n[kernel] '");
+        print_string(sched_current()->name);
+        print_string("' crashed: ");
+        print_string(r->int_no < 32 ? exception_names[r->int_no] : "Unknown");
+        print_string(" at EIP ");
+        print_hex(r->eip);
+        if (r->int_no == 14) {
+            print_string(", address ");
+            print_hex(read_cr2());
+        }
+        print_string(" - killed\n");
+        set_color(VGA_LIGHT_GREY, VGA_BLACK);
+        return sched_exit(r);
+    }
+
     __asm__ volatile ("cli");
     panic_screen("unhandled CPU exception");
 

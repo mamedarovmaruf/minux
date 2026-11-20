@@ -4,13 +4,22 @@
 #include "keyboard.h"
 #include "ata.h"
 #include "fat.h"
-#include "mos.h"
 #include "video.h"
 #include "pmm.h"
 #include "paging.h"
 #include "kheap.h"
 #include "gdt.h"
 #include "pit.h"
+#include "sched.h"
+#include "proc.h"
+
+/* Spawn with interrupts off: the timer must not see a half-built task. */
+static int start_program(const char *name) {
+    __asm__ volatile ("cli");
+    int pid = proc_spawn(name);
+    __asm__ volatile ("sti");
+    return pid;
+}
 
 void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
     gdt_init();                      /* own GDT before anything else */
@@ -31,7 +40,8 @@ void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
 
     /* Memory: needs IDT first so a page fault shows a panic screen. */
     pmm_init(mb_magic, mb_info);
-    if (paging_init() == 0) {
+    int paged = (paging_init() == 0);
+    if (paged) {
         kheap_init();
         print_dec(pmm_free_pages() * 4 / 1024);
         print_string(" MB free, paging and heap ready.\n");
@@ -43,6 +53,7 @@ void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
 
     keyboard_init();
     pit_init(100);                   /* 100 Hz system tick */
+    sched_init();                    /* this boot context becomes the idle task */
     __asm__ volatile ("sti");
     print_string("Keyboard driver ready.\n");
     print_string("GDT loaded, timer running at ");
@@ -69,5 +80,27 @@ void kernel_main(uint32_t mb_magic, uint32_t mb_info) {
     print_string("\n");
 
     set_color(VGA_LIGHT_GREY, VGA_BLACK);
-    mos_run();
+
+    /* Everything but the kernel runs in ring 3. The shell is the first
+       user program; if it dies, the idle loop below starts it again. */
+    int shell = -1;
+    if (paged) {
+        shell = start_program("mos");
+        if (shell < 0) {
+            set_color(VGA_YELLOW, VGA_BLACK);
+            print_string("Cannot start the shell.\n");
+            paged = 0;
+        }
+    } else {
+        set_color(VGA_YELLOW, VGA_BLACK);
+        print_string("User mode needs paging, shell not started.\n");
+    }
+
+    for (;;) {
+        if (paged && !sched_alive(shell)) {
+            shell = start_program("mos");
+            if (shell < 0) paged = 0;
+        }
+        __asm__ volatile ("hlt");
+    }
 }

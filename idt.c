@@ -16,16 +16,17 @@ struct idt_ptr {
 
 extern uint32_t isr_stub_table[32];
 extern uint32_t irq_stub_table[16];
+extern void isr128(void);
 
 static struct idt_entry idt[256];
 static struct idt_ptr idtp;
 
-static void set_gate(int n, uint32_t handler, uint16_t selector) {
+static void set_gate(int n, uint32_t handler, uint16_t selector, uint8_t flags) {
     idt[n].base_low  = (uint16_t)(handler & 0xFFFF);
     idt[n].base_high = (uint16_t)((handler >> 16) & 0xFFFF);
     idt[n].selector  = selector;
     idt[n].zero      = 0;
-    idt[n].flags     = 0x8E;
+    idt[n].flags     = flags;
 }
 
 void idt_init(void) {
@@ -33,12 +34,15 @@ void idt_init(void) {
     __asm__ volatile ("mov %%cs, %0" : "=r"(cs));
 
     for (int i = 0; i < 32; i++) {
-        set_gate(i, isr_stub_table[i], cs);
+        set_gate(i, isr_stub_table[i], cs, 0x8E);
     }
 
     for (int i = 0; i < 16; i++) {
-        set_gate(32 + i, irq_stub_table[i], cs);
+        set_gate(32 + i, irq_stub_table[i], cs, 0x8E);
     }
+
+    /* System call gate: DPL 3 so user mode may use int 0x80. */
+    set_gate(0x80, (uint32_t)(uintptr_t)isr128, cs, 0xEE);
 
     idtp.limit = (uint16_t)(sizeof(idt) - 1);
     idtp.base  = (uint32_t)(uintptr_t)idt;
